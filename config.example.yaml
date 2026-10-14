@@ -1,0 +1,80 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Configuration des scripts d'analyse de localisation (NLL) et de
+# relocalisation (scrtdd / hypoDD)
+#
+# Pour l'utiliser :
+#   cp config.example.yaml config.yaml
+#   puis adapter les chemins ci-dessous à votre machine.
+#
+# config.yaml n'est PAS versionné (voir .gitignore) car il contient des
+# chemins propres à chaque poste de travail.
+# ═══════════════════════════════════════════════════════════════════════════
+
+paths:
+  # Bulletin SeisComP purifié (sortie de purify_cat.py) : une ligne par
+  # origine, avec l'origine manuelle (LOCSAT) et la ou les origines NLL de
+  # chaque événement. Un fichier coupled_*.csv fonctionne aussi.
+  bulletin: "/path/to/Bulletin/purified_1_ubaye_topo_v2.csv"
+
+  # Dossier d'un run scrtdd multi-événements : celui qui contient
+  # reloc-event.csv (les fichiers input-*.csv et cluster-*.csv peuvent être
+  # dans un sous-dossier multievent_*/, ils sont trouvés automatiquement)
+  scrtdd_run_dir: "/path/to/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
+
+  # Liste d'origines passée à scrtdd (sortie de sclistorg). Laisser vide pour
+  # chercher automatiquement un eventlist*.csv dans scrtdd_run_dir.
+  # Sert à retrouver l'Event ID SeisComP de chaque événement relocalisé.
+  scrtdd_eventlist: null
+
+  # Dossier des figures et CSV produits (relatif au dépôt ou absolu).
+  # Chaque script écrit dans un sous-dossier à son nom.
+  output_dir: "outputs"
+
+# ── Localisation NLL ────────────────────────────────────────────────────────
+nll:
+  # Run NLL à analyser = valeur de la colonne Author du bulletin
+  author: "1_ubaye_topo_v2"
+
+  # Classes de qualité, de la meilleure à la moins bonne. Une origine reçoit
+  # la première classe dont elle respecte tous les critères ; la dernière
+  # classe sert de « reste ». Critères possibles (tous optionnels) :
+  #   rms_max (s), erh_max_km (max des incertitudes lat/lon), erz_max_km
+  #   gap_max (°), nphs_min, dmin_max_km : seulement si ces colonnes existent
+  #   dans le bulletin (à ajouter à l'export scquery), sinon ignorés
+  quality_classes:
+    - {name: A, rms_max: 0.05, erh_max_km: 1.0, erz_max_km: 1.0}
+    - {name: B, rms_max: 0.10, erh_max_km: 2.0, erz_max_km: 2.0}
+    - {name: C, rms_max: 0.20, erh_max_km: 5.0, erz_max_km: 5.0}
+    - {name: D}
+
+# ── Comparaison de plusieurs runs ───────────────────────────────────────────
+compare:
+  # Runs NLL à comparer (valeurs de Author). Liste vide → tous les runs NLL
+  # présents dans le bulletin.
+  nll_authors: [1_ubaye_v3, 5_ubaye_v3, 025_ubaye_v2, 1D_ubaye_v1, 1_ubaye_topo_v2]
+
+  # Runs scrtdd à comparer : étiquette → dossier (contenant reloc-event.csv)
+  scrtdd_runs:
+    cc_3km: "/path/to/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
+    cc_4km: "/path/to/scrtdd-test/run-with-cc/c05_4km_80km/12_2024_02_2025"
+    cc_5km: "/path/to/scrtdd-test/run-with-cc/c05_5km_80km/12_2024_02_2025"
+
+# ── Cartes et coupes ────────────────────────────────────────────────────────
+map:
+  # Emprise de la carte (null → automatique)
+  zone: {lon_min: 6.60, lon_max: 7.00, lat_min: 44.42, lat_max: 44.62}
+
+  # Profils de coupe : extrémités (lon1, lat1) → (lon2, lat2) et demi-largeur
+  # de la bande d'événements projetés. Liste vide → carte seule.
+  sections:
+    - {name: AA', lon1: 6.75, lat1: 44.55, lon2: 6.95, lat2: 44.47, half_width_km: 2.0}
+    - {name: BB', lon1: 6.80, lat1: 44.45, lon2: 6.88, lat2: 44.58, half_width_km: 2.0}
+
+  # Afficher les stations (lues dans input-station.csv du run scrtdd)
+  show_stations: true
+
+# ── Tableau récapitulatif ───────────────────────────────────────────────────
+summary:
+  # Si l'eventlist scrtdd est introuvable, les événements relocalisés sont
+  # associés au bulletin par temps origine, à cette tolérance près (s)
+  time_tolerance_s: 1.0

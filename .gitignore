@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.DS_Store
+.venv/
+
+# Configuration locale (chemins propres à chaque machine) — voir config.example.yaml
+config.yaml
+
+# Résultats des scripts
+outputs/
+
+# Contexte Claude Code (local uniquement)
+CLAUDE.md
