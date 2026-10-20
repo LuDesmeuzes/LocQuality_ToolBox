@@ -46,7 +46,7 @@ def load_config(config_path):
         raise FileNotFoundError(
             f"Fichier de configuration introuvable : {config_path}\n"
             f"→ Copier {example.name} vers {config_path.name} puis adapter "
-            f"les chemins à votre machine."
+            f"les chemins à votre machine/cas ."
         )
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)

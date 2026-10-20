@@ -1,16 +1,11 @@
 # Analyse de la qualité des localisations NLL et des relocalisations scrtdd
 
 Ce dépôt contient des scripts Python pour mesurer la qualité :
-- des **localisations NonLinLoc (NLL)** faites dans SeisComP, à partir des
-  bulletins exportés avec scquery puis purifiés (`purify_cat.py`) ;
-- des **relocalisations par double différence** faites avec **scrtdd**
-  (hypoDD dans SeisComP), à partir des fichiers CSV écrits par scrtdd en
-  mode multi-événements.
+- des **localisations NonLinLoc (NLL)** faites dans SeisComP, à partir des bulletins exportés avec scquery puis purifiés (`purify_cat.py`) ;
+- des **relocalisations par double différence** faites avec **scrtdd** (hypoDD dans SeisComP), à partir des fichiers CSV écrits par scrtdd en mode multi-événements.
 
-Chaque analyse est un script autonome : on le lance, il écrit ses figures
-et ses CSV dans `outputs/<nom_du_script>/`. Le code commun (lecture des
-fichiers, calculs géographiques, style des figures) est dans
-`loc_common.py`.
+Chaque script permet d'appeler un type d'analyse (d'écrite ci dessous).
+Le code commun (lecture des fichiers, calculs géographiques, style des figures) est dans `loc_common.py`.
 
 ## Scripts disponibles
 
