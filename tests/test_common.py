@@ -18,7 +18,9 @@ from loc_common import (
     pair_with_reference,
     project_on_section,
     read_bulletin,
+    quality_subsets,
     read_nll_hyp,
+    read_nll_phases,
     read_nll_run,
     reference_origins,
 )
@@ -220,3 +222,24 @@ def test_read_nll_run_and_load_bulletin(tmp_path, bulletin):
     assert {"run_a", "run_b", "mon_run"} <= set(both["author"])
     with pytest.raises(ValueError):
         load_bulletin({"paths": {}})
+
+
+def test_read_nll_phases(tmp_path):
+    run = tmp_path / "mon_run"
+    run.mkdir()
+    (run / "run.yaml").write_text("nom: mon_run\n")
+    (run / "phases.csv").write_text(
+        "event_id,station,phase,time,error_s,tt_pred_s,residual_s,weight,dist_km,azimuth,ray_azimuth,ray_dip,tcorr_s\n"
+        "ev1,SURF,Pg,2024-11-01T23:55:57,0.02,1.69,-0.01,1.6,5.7,173.0,173.0,139.2,0.0\n"
+        "ev1,JAUF,Sg,2024-11-01T23:55:59,0.02,4.39,-0.18,0.8,12.3,200.5,200.5,112.5,0.0\n")
+    ph = read_nll_phases(run)
+    assert list(ph["phase_type"]) == ["P", "S"]
+    assert set(ph["author"]) == {"mon_run"}
+
+
+def test_quality_subsets_same_events_for_all_runs(bulletin):
+    runs = {a: nll_origins(bulletin, a) for a in ["run_a", "run_b"]}
+    subsets = quality_subsets(runs, CLASSES, ["A", "B"])
+    # ev2 est commun aux deux runs ; il est en classe D pour run_a (erh 9 km)
+    assert subsets["tous"] == {"ev2"}
+    assert subsets["A_B"] == set()

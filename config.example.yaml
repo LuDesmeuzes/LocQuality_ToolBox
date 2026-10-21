@@ -55,6 +55,11 @@ nll:
 
 # ── Comparaison de plusieurs runs ───────────────────────────────────────────
 compare:
+  # Classes de nll.quality_classes des événements « bien contraints » :
+  # nll_station_residuals.py et nll_sections.py comparent les runs sur
+  # tous les événements communs, puis sur ceux classés ainsi par chaque run.
+  well_constrained_classes: [A, B]
+
   # Runs NLL à comparer (valeurs de Author). Liste vide → tous les runs NLL
   # présents dans le bulletin.
   nll_authors: [1_ubaye_v3, 5_ubaye_v3, 025_ubaye_v2, 1D_ubaye_v1, 1_ubaye_topo_v2]
@@ -104,3 +109,8 @@ summary:
   # Si l'eventlist scrtdd est introuvable, les événements relocalisés sont
   # associés au bulletin par temps origine, à cette tolérance près (s)
   time_tolerance_s: 1.0
+
+# ── Résidus par station (nll_station_residuals.py) ──────────────────────────
+residuals:
+  # Nombre minimal de résidus pour qu'une station soit montrée et comptée
+  min_count: 50

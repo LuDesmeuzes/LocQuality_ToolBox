@@ -258,6 +258,52 @@ def load_bulletin(config):
     return pd.concat(frames, ignore_index=True)
 
 
+def read_nll_phases(run_dir):
+    """
+    Phases d'un run NLL local (phases.csv de nll_run.py) : une ligne par
+    phase utilisée, avec author = nom du run, phase_type = P ou S, et le
+    résidu (observé − calculé, s), le poids, la distance et l'azimut.
+    """
+    run_dir = Path(run_dir)
+    path = run_dir / "phases.csv"
+    if not path.exists():
+        raise FileNotFoundError(f"phases.csv introuvable dans {run_dir} "
+                                f"(run antérieur à l'extraction des phases : le relancer)")
+    meta = yaml.safe_load((run_dir / "run.yaml").read_text())
+    df = pd.read_csv(path, dtype={"event_id": str, "station": str})
+    df["author"] = meta["nom"]
+    df["phase_type"] = df["phase"].str[0].str.upper()
+    return df
+
+
+def load_nll_phases(config, authors=None):
+    """Phases des runs locaux de paths.nll_runs (filtrés sur authors si donné)."""
+    frames = []
+    for r in config.get("paths", {}).get("nll_runs") or []:
+        df = read_nll_phases(r)
+        if authors is None or df["author"].iat[0] in authors:
+            frames.append(df)
+    if not frames:
+        raise ValueError("Aucun run local avec phases.csv parmi paths.nll_runs")
+    return pd.concat(frames, ignore_index=True)
+
+
+def quality_subsets(origins_by_run, classes, good_classes):
+    """
+    Sous-ensembles d'événements pour comparer des runs sur les mêmes
+    événements : {"tous": événements communs à tous les runs,
+    "<classes>" (ex. "A_B"): événements classés dans good_classes par
+    chacun des runs}. origins_by_run : {author: origines NLL (nll_origins)}.
+    """
+    common, good = None, None
+    for df in origins_by_run.values():
+        ids = set(df["event_id"])
+        ok = set(df.loc[classify_quality(df, classes).isin(good_classes), "event_id"])
+        common = ids if common is None else common & ids
+        good = ok if good is None else good & ok
+    return {"tous": common, "_".join(good_classes): good & common}
+
+
 def nll_origins(bulletin, author=None):
     """
     Origines NonLinLoc du bulletin, éventuellement filtrées sur un run

@@ -15,6 +15,8 @@ Le code commun (lecture des fichiers, calculs géographiques, style des figures)
 | `nll_vs_reference.py` | bulletin | Écarts NLL − origine de référence (LOCSAT) |
 | `nll_compare_runs.py` | bulletin | Comparaison de plusieurs runs NLL |
 | `nll_gridding.py` | bulletin | Quadrillage (octree) et paliers de profondeur des runs NLL |
+| `nll_station_residuals.py` | runs locaux | Résidus par station (biais, dispersion) de plusieurs runs |
+| `nll_sections.py` | bulletin, runs locaux | Netteté des structures : cartes et coupes côte à côte |
 | `dd_shifts.py` | scrtdd | Déplacements avant → après relocalisation |
 | `dd_residuals.py` | scrtdd | Résidus avant / après, par station, double différence |
 | `dd_links.py` | scrtdd | Liens DD par événement, clusters, contrôle de la corrélation croisée |
@@ -85,6 +87,44 @@ de cellule finale), `depths.png` (profondeurs au pas de 50 m).
 > d'autres valeurs, le niveau d'octree n'est pas retrouvé. Les runs locaux
 > de `paths.nll_runs` sont ajoutés automatiquement, avec les paramètres de
 > leur `run.yaml`.
+
+### `nll_station_residuals.py` — résidus par station
+
+Le résidu d'une phase est le temps observé (pointé) moins le temps calculé
+par NLL depuis l'hypocentre. Regroupés par station et par type de phase, les
+résidus donnent le **biais** de la station (résidu moyen : le modèle prédit
+systématiquement trop tôt ou trop tard pour les trajets vers cette station)
+et sa **dispersion**. Un bon modèle donne des biais proches de 0 partout.
+
+Le script compare les runs de `compare.nll_authors` qui ont leurs phases,
+c'est-à-dire les runs locaux de `paths.nll_runs` (`phases.csv` écrit par
+`nll_run.py`) : l'export du bulletin SeisComP ne contient pas les arrivées.
+Les runs sont comparés sur les mêmes événements, pour deux sous-ensembles :
+tous les événements communs, puis ceux classés dans
+`compare.well_constrained_classes` (ex. A et B) par **chacun** des runs.
+
+Sorties, par sous-ensemble : `stations.csv`, `summary.csv`,
+`station_bias.png` (biais par station, un point par run, stations triées par
+distance), `residual_vs_distance.png`.
+
+> Une partie de l'erreur du modèle est absorbée par la position de
+> l'hypocentre : les résidus la sous-estiment.
+
+### `nll_sections.py` — netteté des structures
+
+Une faille est fine ; les erreurs de localisation étalent la sismicité
+autour. Le script trace, pour les runs de `compare.nll_authors` et sur les
+mêmes événements, une carte par run et les coupes de `map.sections` (une
+ligne par run), et mesure dans chaque coupe la distance médiane au plus
+proche voisin et l'épaisseur du nuage (écart-type selon son petit axe), plus
+la distance au plus proche voisin en 3D sur toute la zone. Mêmes deux
+sous-ensembles que `nll_station_residuals.py`.
+
+Sorties, par sous-ensemble : `metrics.csv`, `maps.png`, `sections.png`.
+
+> Le quadrillage rend la sismicité artificiellement « nette » : la part de
+> plus proches voisins confondus (< 10 m) le signale. À lire avec
+> `nll_gridding.py`.
 
 ### `dd_shifts.py` — déplacements de relocalisation
 
@@ -263,6 +303,8 @@ LocQuality_ToolBox/
 ├── nll_vs_reference.py     ← NLL vs référence LOCSAT
 ├── nll_compare_runs.py     ← comparaison de runs NLL
 ├── nll_gridding.py         ← quadrillage (octree) et paliers de profondeur
+├── nll_station_residuals.py ← résidus par station
+├── nll_sections.py         ← netteté des structures (cartes et coupes)
 ├── dd_shifts.py            ← déplacements scrtdd
 ├── dd_residuals.py         ← résidus scrtdd
 ├── dd_links.py             ← liens DD et corrélation croisée
