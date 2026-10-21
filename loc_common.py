@@ -144,6 +144,120 @@ def read_bulletin(path):
     return df
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# RUNS NLL EN LIGNE DE COMMANDE (nll_run.py de NonLinLoc_ToolBox)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Valeurs lues dans chaque bloc NLLOC … END_NLLOC d'un .hyp
+_HYP_FIELDS = {
+    "status": r'^NLLOC "[^"]*" "(\w+)"',
+    "event_id": r"^PUBLIC_ID (\S+)",
+    "geo": r"^GEOGRAPHIC\s+OT\s+(\d+) (\d+) (\d+)\s+(\d+) (\d+) (\S+)\s+Lat (\S+) Long (\S+) Depth (\S+)",
+    "quality": r"^QUALITY .* RMS (\S+) Nphs (\S+) Gap (\S+) Dist (\S+)",
+    "cov": r"CovXX (\S+) XY \S+ XZ \S+ YY (\S+) YZ \S+ ZZ (\S+)",
+    "node": r"smallestNodeSide (\S+)/(\S+)/(\S+)",
+}
+
+
+def read_nll_hyp(path):
+    """
+    Lit un fichier .hyp NLLoc (un ou plusieurs blocs NLLOC … END_NLLOC).
+    Une ligne par localisation : event_id (PUBLIC_ID), status (LOCATED /
+    REJECTED), time, latitude, longitude, depth, rms, nphs, gap, dmin_km,
+    incertitudes en km comme SeisComP : lat_unc_km = √CovYY,
+    lon_unc_km = √CovXX, depth_unc_km = √CovZZ (vérifié à 1 % près sur
+    1D_ubaye_v2), smallest_node_km (côté horizontal de la plus petite
+    cellule d'octree).
+    """
+    rows = []
+    for block in Path(path).read_text().split("END_NLLOC"):
+        if "NLLOC" not in block:
+            continue
+        found = {k: re.search(p, block, re.M) for k, p in _HYP_FIELDS.items()}
+        if found["geo"] is None:
+            continue
+        y, mo, d, h, mi, s, lat, lon, depth = found["geo"].groups()
+        row = {
+            "event_id": found["event_id"].group(1) if found["event_id"] else None,
+            "status": found["status"].group(1) if found["status"] else None,
+            "time": pd.Timestamp(int(y), int(mo), int(d), int(h), int(mi), tz="UTC")
+                    + pd.to_timedelta(float(s), unit="s"),
+            "latitude": float(lat), "longitude": float(lon), "depth": float(depth),
+        }
+        if found["quality"]:
+            rms, nphs, gap, dist = found["quality"].groups()
+            row.update(rms=float(rms), nphs=int(nphs), gap=float(gap), dmin_km=float(dist))
+        if found["cov"]:
+            cxx, cyy, czz = (float(v) for v in found["cov"].groups())
+            row.update(lat_unc_km=np.sqrt(cyy), lon_unc_km=np.sqrt(cxx), depth_unc_km=np.sqrt(czz))
+        if found["node"]:
+            row["smallest_node_km"] = float(found["node"].group(1))
+        rows.append(row)
+    return pd.DataFrame(rows)
+
+
+def read_nll_run(run_dir):
+    """
+    Lit un run NLL en ligne de commande (dossier écrit par nll_run.py :
+    <nom>.hyp, evenements.csv, run.yaml) et le renvoie au même format que
+    read_bulletin : une ligne par origine NLL localisée (author = nom du run,
+    method = NonLinLoc) et une par origine de référence (l'origine préférée
+    SeisComP dont viennent les pointés). Colonnes en plus de read_bulletin :
+    nphs, gap, dmin_km, smallest_node_km.
+    """
+    run_dir = Path(run_dir)
+    meta_path = run_dir / "run.yaml"
+    if not meta_path.exists():
+        raise FileNotFoundError(f"run.yaml introuvable dans {run_dir} (run de nll_run.py ?)")
+    meta = yaml.safe_load(meta_path.read_text())
+    name = meta["nom"]
+    hyp = read_nll_hyp(run_dir / f"{name}.hyp")
+    hyp = hyp[hyp["status"] == "LOCATED"]
+    events = pd.read_csv(run_dir / "evenements.csv", dtype={"event_id": str, "origin_id": str})
+
+    nll = hyp.merge(events[["event_id", "origin_id", "event_type"]]
+                    .rename(columns={"origin_id": "preferred_origin_id"}), on="event_id", how="left")
+    nll["origin_id"] = name + "." + nll["event_id"]
+    nll["author"] = name
+    nll["method"] = NLL_METHOD
+
+    ref = events.rename(columns={"origin_time": "time"})
+    ref["preferred_origin_id"] = ref["origin_id"]
+    ref["author"] = "reference"
+    ref["time"] = pd.to_datetime(ref["time"], utc=True, format="ISO8601")
+    ref = ref[["event_id", "origin_id", "time", "latitude", "lat_unc_km", "longitude",
+               "lon_unc_km", "depth", "depth_unc_km", "event_type", "author", "method",
+               "preferred_origin_id", "rms"]]
+
+    df = pd.concat([nll.drop(columns="status"), ref], ignore_index=True)
+    df["erh_km"] = df[["lat_unc_km", "lon_unc_km"]].max(axis=1)
+    return df
+
+
+def load_bulletin(config):
+    """
+    Toutes les origines à analyser : le ou les bulletins SeisComP de
+    paths.bulletin (un chemin ou une liste, optionnel) et les runs NLL en
+    ligne de commande de paths.nll_runs (liste de dossiers, optionnelle).
+    Les runs locaux apparaissent comme des auteurs de plus, sous leur nom.
+    """
+    paths = config.get("paths", {})
+    bulletins = paths.get("bulletin") or []
+    runs = paths.get("nll_runs") or []
+    if isinstance(bulletins, str):
+        bulletins = [bulletins]
+    if not bulletins and not runs:
+        raise ValueError("paths.bulletin ou paths.nll_runs doit être renseigné dans config.yaml")
+    frames = []
+    for b in bulletins:
+        log(f"Lecture du bulletin {b}")
+        frames.append(read_bulletin(b))
+    for r in runs:
+        log(f"Lecture du run NLL local {r}")
+        frames.append(read_nll_run(r))
+    return pd.concat(frames, ignore_index=True)
+
+
 def nll_origins(bulletin, author=None):
     """
     Origines NonLinLoc du bulletin, éventuellement filtrées sur un run

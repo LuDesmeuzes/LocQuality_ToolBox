@@ -28,7 +28,7 @@ import pandas as pd
 
 from loc_common import (
     SERIES, INK_MUTED, classify_quality, load_config, log, map_and_sections,
-    nll_origins, output_dir, pair_with_reference, parse_args, read_bulletin,
+    nll_origins, output_dir, pair_with_reference, parse_args, load_bulletin,
     reference_origins, require, save, setup_style,
 )
 
@@ -104,8 +104,7 @@ def main():
     out = output_dir(config, "nll_vs_reference")
     author = require(config, "nll.author")
 
-    log(f"Lecture du bulletin {require(config, 'paths.bulletin')}")
-    bulletin = read_bulletin(config["paths"]["bulletin"])
+    bulletin = load_bulletin(config)
     nll = nll_origins(bulletin, author)
     ref = reference_origins(bulletin)
     pairs = pair_with_reference(nll, ref)

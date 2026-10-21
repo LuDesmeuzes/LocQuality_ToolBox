@@ -11,12 +11,15 @@ from loc_common import (
     ScrtddRun,
     classify_quality,
     horizontal_shift_km,
+    load_bulletin,
     load_config,
     match_by_time,
     nll_origins,
     pair_with_reference,
     project_on_section,
     read_bulletin,
+    read_nll_hyp,
+    read_nll_run,
     reference_origins,
 )
 
@@ -155,3 +158,65 @@ def test_scrtdd_shifts_and_ids(tmp_path):
 def test_scrtdd_run_requires_reloc_event(tmp_path):
     with pytest.raises(FileNotFoundError, match="reloc-event.csv"):
         ScrtddRun(tmp_path)
+
+
+# Bloc .hyp NLLoc (extrait réel, raccourci) et récapitulatif d'événements de nll_run.py
+HYP = """\
+NLLOC "loc/part_0/loc.20241101.235555.grid0" "LOCATED" "Location completed."
+PUBLIC_ID ev1
+SEARCH OCTREE nInitial 8100 nEvaluated 50012 smallestNodeSide 0.104167/0.104167/0.100694 oct_tree_integral 1.2e+01 scatter_volume 1.2e+01
+HYPOCENTER  x 3.28125 y 4.11458 z -2.02951  OT 56.0973  ix -1 iy -1 iz -1 MAXIMUM_LIKELIHOOD
+GEOGRAPHIC  OT 2024 11 01  23 55 56.097332  Lat 44.546954 Long 6.791360 Depth 2.029514
+QUALITY  Pmax 1.50474e+09 MFmin 8.69811 MFmax 10.1469 RMS 0.0395916 Nphs 5 Gap 256.252 Dist 7.52444 Mamp -9.90 0 Mdur -9.90 0
+STATISTICS  ExpectX 0.729791 Y 0.258577 Z 0.762342  CovXX 0.25 XY 8.2414 XZ -11.0046 YY 1.0 YZ -1.48201 ZZ 4.0 EllAz1  104.166 Dip1  65.349 Len1  6.59096
+END_NLLOC
+NLLOC "loc/part_0/loc.20241101.223951.grid0" "REJECTED" "Too few phases."
+PUBLIC_ID ev2
+GEOGRAPHIC  OT 2024 11 01  22 39 51.900000  Lat 44.5 Long 6.8 Depth 5.0
+END_NLLOC
+"""
+
+EVENTS = """\
+event_id,event_type,origin_id,origin_time,method,latitude,longitude,depth,lat_unc_km,lon_unc_km,depth_unc_km,rms,n_P,n_S,gap,used_phases,source
+ev1,earthquake,Origin/1,2024-11-01T23:55:55.362581Z,LOCSAT,44.49,6.88,1.57,0.5,0.4,0.0,0.12,3,2,,,2024-11-01.xml
+ev2,earthquake,Origin/2,2024-11-01T22:39:51.919222Z,LOCSAT,44.50,6.83,5.53,0.6,0.5,0.0,0.10,2,0,,,2024-11-01.xml
+"""
+
+
+def test_read_nll_hyp(tmp_path):
+    path = tmp_path / "run.hyp"
+    path.write_text(HYP)
+    hyp = read_nll_hyp(path)
+    assert list(hyp["event_id"]) == ["ev1", "ev2"]
+    assert list(hyp["status"]) == ["LOCATED", "REJECTED"]
+    row = hyp.iloc[0]
+    assert row["latitude"] == pytest.approx(44.546954) and row["depth"] == pytest.approx(2.029514)
+    assert row["time"] == pd.Timestamp("2024-11-01 23:55:56.097332", tz="UTC")
+    assert (row["nphs"], row["gap"], row["dmin_km"]) == (5, pytest.approx(256.252), pytest.approx(7.52444))
+    # Incertitudes comme SeisComP : latitude ← CovYY, longitude ← CovXX
+    assert (row["lat_unc_km"], row["lon_unc_km"], row["depth_unc_km"]) == (1.0, 0.5, 2.0)
+    assert row["smallest_node_km"] == pytest.approx(0.104167)
+
+
+def test_read_nll_run_and_load_bulletin(tmp_path, bulletin):
+    run = tmp_path / "runs" / "mon_run"
+    run.mkdir(parents=True)
+    (run / "mon_run.hyp").write_text(HYP)
+    (run / "evenements.csv").write_text(EVENTS)
+    (run / "run.yaml").write_text("nom: mon_run\nlocsearch: OCT 30 30 9 0.001 50000 5000 0 1\n"
+                                  "locgrid: 101 101 30 -50 -50 -5.0 1.0 1.0 1.0 PROB_DENSITY SAVE\n")
+    df = read_nll_run(run)
+    nll = nll_origins(df, "mon_run")
+    assert list(nll["event_id"]) == ["ev1"]  # l'événement rejeté n'est pas gardé
+    assert nll.iloc[0]["erh_km"] == 1.0
+    ref = reference_origins(df)
+    assert set(ref["origin_id"]) == {"Origin/1", "Origin/2"}
+    pairs = pair_with_reference(nll, ref)
+    assert pairs.iloc[0]["dz_km"] == pytest.approx(2.029514 - 1.57)
+
+    bulletin_path = tmp_path / "purified_test.csv"
+    config = {"paths": {"bulletin": str(bulletin_path), "nll_runs": [str(run)]}}
+    both = load_bulletin(config)
+    assert {"run_a", "run_b", "mon_run"} <= set(both["author"])
+    with pytest.raises(ValueError):
+        load_bulletin({"paths": {}})

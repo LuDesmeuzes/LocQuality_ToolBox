@@ -14,7 +14,13 @@ paths:
   # Bulletin SeisComP purifié (sortie de purify_cat.py) : une ligne par
   # origine, avec l'origine manuelle (LOCSAT) et la ou les origines NLL de
   # chaque événement. Un fichier coupled_*.csv fonctionne aussi.
+  # Un chemin ou une liste de chemins ; peut être vide si nll_runs est renseigné.
   bulletin: "/path/to/Bulletin/purified_1_ubaye_topo_v2.csv"
+
+  # Runs NLL en ligne de commande (dossiers écrits par nll_run.py de
+  # NonLinLoc_ToolBox). Chacun apparaît comme un run NLL de plus, sous son
+  # nom (valeur à utiliser dans nll.author ou compare.nll_authors).
+  nll_runs: []
 
   # Dossier d'un run scrtdd multi-événements : celui qui contient
   # reloc-event.csv (les fichiers input-*.csv et cluster-*.csv peuvent être
@@ -72,6 +78,26 @@ map:
 
   # Afficher les stations (lues dans input-station.csv du run scrtdd)
   show_stations: true
+
+# ── Quadrillage des localisations NLL (nll_gridding.py) ─────────────────────
+gridding:
+  # Runs à analyser : Author → paramètres de recherche du profil SeisComP
+  # qui a produit le run (NLL.<profil>.conf). Les runs locaux de
+  # paths.nll_runs sont ajoutés automatiquement (paramètres de run.yaml).
+  #   locgrid : LOCGRID nx ny nz x0 y0 z0 dx dy dz (km)
+  #   oct     : nombre de cellules initiales de LOCSEARCH OCT (nx ny nz)
+  runs:
+    1D_ubaye_v1: {locgrid: [101, 101, 30, -50, -50, -5.0, 1.0, 1.0, 1.0], oct: [15, 15, 15]}
+    1D_ubaye_v2: {locgrid: [101, 101, 30, -50, -50, -5.0, 1.0, 1.0, 1.0], oct: [30, 30, 9]}
+
+  # Grille topographique au format ASCII GMT 4 (le topo.asc de
+  # LOCTOPO_SURFACE) pour compter les événements au-dessus du relief.
+  # null → pas de test.
+  topo: "/path/to/profils/1_ubaye_topo/topo_corrige.asc"
+
+  # Demi-largeur (km) de la fenêtre autour d'une profondeur entière pour
+  # compter un palier (et pour le toit de la grille)
+  plateau_window_km: 0.05
 
 # ── Tableau récapitulatif ───────────────────────────────────────────────────
 summary:

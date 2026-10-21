@@ -27,7 +27,7 @@ import pandas as pd
 
 from loc_common import (
     SEQ_BLUE, INK_MUTED, classify_quality, load_config, log, map_and_sections,
-    nll_origins, output_dir, parse_args, read_bulletin, require, save, setup_style,
+    nll_origins, output_dir, parse_args, load_bulletin, require, save, setup_style,
 )
 
 
@@ -61,8 +61,7 @@ def main():
     author = require(config, "nll.author")
     classes = require(config, "nll.quality_classes")
 
-    log(f"Lecture du bulletin {require(config, 'paths.bulletin')}")
-    bulletin = read_bulletin(config["paths"]["bulletin"])
+    bulletin = load_bulletin(config)
     nll = nll_origins(bulletin, author)
     log(f"{len(nll)} origines NLL pour le run {author}", 1)
 

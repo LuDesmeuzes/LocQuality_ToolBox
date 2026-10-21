@@ -30,7 +30,7 @@ import pandas as pd
 
 from loc_common import (
     ScrtddRun, classify_quality, load_config, log, match_by_time, nll_origins,
-    output_dir, pair_with_reference, parse_args, read_bulletin,
+    output_dir, pair_with_reference, parse_args, load_bulletin,
     reference_origins, require,
 )
 
@@ -63,8 +63,7 @@ def main():
     out = output_dir(config, "summary_table")
     author = require(config, "nll.author")
 
-    log(f"Lecture du bulletin {require(config, 'paths.bulletin')}")
-    bulletin = read_bulletin(config["paths"]["bulletin"])
+    bulletin = load_bulletin(config)
     nll = nll_origins(bulletin, author)
     nll["quality"] = classify_quality(nll, require(config, "nll.quality_classes"))
     pairs = pair_with_reference(nll, reference_origins(bulletin))

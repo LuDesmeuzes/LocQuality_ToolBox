@@ -28,7 +28,7 @@ import pandas as pd
 
 from loc_common import (
     NLL_METHOD, SERIES, classify_quality, load_config, log,
-    nll_origins, output_dir, pair_with_reference, parse_args, read_bulletin,
+    nll_origins, output_dir, pair_with_reference, parse_args, load_bulletin,
     reference_origins, require, save, setup_style,
 )
 
@@ -75,8 +75,7 @@ def main():
     out = output_dir(config, "nll_compare_runs")
     classes = require(config, "nll.quality_classes")
 
-    log(f"Lecture du bulletin {require(config, 'paths.bulletin')}")
-    bulletin = read_bulletin(config["paths"]["bulletin"])
+    bulletin = load_bulletin(config)
     authors = (config.get("compare", {}).get("nll_authors")
                or sorted(bulletin.loc[bulletin["method"] == NLL_METHOD, "author"].dropna().unique()))
     log(f"{len(authors)} runs comparés : {authors}", 1)

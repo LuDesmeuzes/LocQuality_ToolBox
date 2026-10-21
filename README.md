@@ -14,6 +14,7 @@ Le code commun (lecture des fichiers, calculs géographiques, style des figures)
 | `nll_quality.py` | bulletin | Classes de qualité A/B/C/D des origines NLL d'un run |
 | `nll_vs_reference.py` | bulletin | Écarts NLL − origine de référence (LOCSAT) |
 | `nll_compare_runs.py` | bulletin | Comparaison de plusieurs runs NLL |
+| `nll_gridding.py` | bulletin | Quadrillage (octree) et paliers de profondeur des runs NLL |
 | `dd_shifts.py` | scrtdd | Déplacements avant → après relocalisation |
 | `dd_residuals.py` | scrtdd | Résidus avant / après, par station, double différence |
 | `dd_links.py` | scrtdd | Liens DD par événement, clusters, contrôle de la corrélation croisée |
@@ -62,6 +63,28 @@ les runs, pour ne comparer que le même échantillon.
 Sorties : `runs.csv`, `compare.png` et `compare_common.png` (un run par
 ligne : médiane et intervalle 16–84 % du RMS, de l'incertitude horizontale
 et de l'écart à la référence).
+
+### `nll_gridding.py` — quadrillage et paliers de profondeur
+
+NLL place chaque hypocentre au centre de la cellule d'octree la plus
+probable. Pour chaque run de `gridding.runs`, le script retrouve, à partir de
+`LOCGRID` et `LOCSEARCH OCT` du profil, le niveau de subdivision de la
+cellule finale de chaque origine, et donc sa taille : les événements à
+cellule grossière sont ceux qui dessinent le quadrillage. Il mesure aussi la
+part d'épicentres strictement identiques, les paliers de profondeur
+(événements empilés sur une profondeur entière, comparés au voisinage), le
+toit de la grille et, si `gridding.topo` est renseigné, les événements
+au-dessus du relief.
+
+Sorties : `gridding.csv` (une ligne par origine et par run),
+`gridding_stats.csv`, `plateaus.csv`, `cells.png` (répartition des tailles
+de cellule finale), `depths.png` (profondeurs au pas de 50 m).
+
+> Les paramètres `locgrid` et `oct` doivent être ceux du profil SeisComP
+> qui a produit le run (`NLL.<profil>.conf` sur la machine SeisComP) : avec
+> d'autres valeurs, le niveau d'octree n'est pas retrouvé. Les runs locaux
+> de `paths.nll_runs` sont ajoutés automatiquement, avec les paramètres de
+> leur `run.yaml`.
 
 ### `dd_shifts.py` — déplacements de relocalisation
 
@@ -141,6 +164,23 @@ Colonnes utilisées : `Event ID`, `Origin ID`, `Origin Time`, `Latitude`,
 > `Origin Time` est tronqué à la seconde par l'export : les écarts en temps
 > origine ne sont pas exploitables.
 
+### Run NLL en ligne de commande (local)
+
+Le dossier d'un run lancé par `nll_run.py` (dépôt `NonLinLoc_ToolBox`) :
+`<nom>.hyp` (toutes les localisations, `PUBLIC_ID` = Event ID SeisComP),
+`evenements.csv` (origine de référence de chaque événement, celle dont
+viennent les pointés) et `run.yaml` (profil, période, `LOCGRID`,
+`LOCSEARCH`). Les dossiers listés dans `paths.nll_runs` sont lus avec le
+bulletin : chaque run local apparaît comme un run NLL de plus, sous son nom,
+dans tous les scripts `nll_*` et `summary_table.py`.
+
+Les incertitudes sont calculées comme dans SeisComP (latitude ← √CovYY,
+longitude ← √CovXX, profondeur ← √CovZZ de NLL, vérifié à 1 % près sur
+`1D_ubaye_v2`). Un run local a en plus le nombre de phases, le gap et la
+distance minimale (colonnes `nphs`, `gap`, `dmin_km`) : les critères
+`nphs_min`, `gap_max` et `dmin_max_km` des classes de qualité s'appliquent.
+Les localisations rejetées par NLLoc (`REJECTED`) ne sont pas gardées.
+
 ### Run scrtdd
 
 Le dossier qui contient `reloc-event.csv`. Les fichiers d'entrée et par
@@ -167,7 +207,8 @@ cp config.example.yaml config.yaml
 ```
 
 Puis éditer `config.yaml` :
-- `paths.bulletin` : le bulletin purifié
+- `paths.bulletin` : le bulletin purifié (ou une liste de bulletins)
+- `paths.nll_runs` : les runs NLL locaux à analyser avec le bulletin
 - `paths.scrtdd_run_dir` : le dossier du run scrtdd à analyser
 - `paths.output_dir` : où écrire les résultats (défaut `outputs/`)
 - `nll.author` : le run NLL à analyser (valeur de la colonne `Author`)
@@ -205,8 +246,9 @@ pytest tests/
 
 Les tests couvrent la lecture du bulletin, le choix des origines NLL et de
 référence, le calcul des écarts, le classement en qualité, les conversions
-géographiques, l'association par temps et la lecture des deux organisations
-de dossier scrtdd.
+géographiques, l'association par temps, la lecture des runs NLL locaux
+(`.hyp`, `run.yaml`) et la lecture des deux organisations de dossier scrtdd. `tests/test_gridding.py` vérifie le calcul du niveau
+d'octree de `nll_gridding.py`.
 
 ## Structure des fichiers
 
@@ -220,6 +262,7 @@ LocQuality_ToolBox/
 ├── nll_quality.py          ← classes de qualité NLL
 ├── nll_vs_reference.py     ← NLL vs référence LOCSAT
 ├── nll_compare_runs.py     ← comparaison de runs NLL
+├── nll_gridding.py         ← quadrillage (octree) et paliers de profondeur
 ├── dd_shifts.py            ← déplacements scrtdd
 ├── dd_residuals.py         ← résidus scrtdd
 ├── dd_links.py             ← liens DD et corrélation croisée
