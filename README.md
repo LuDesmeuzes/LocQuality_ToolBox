@@ -17,6 +17,7 @@ Le code commun (lecture des fichiers, calculs géographiques, style des figures)
 | `nll_gridding.py` | bulletin | Quadrillage (octree) et paliers de profondeur des runs NLL |
 | `nll_station_residuals.py` | runs locaux | Résidus par station (biais, dispersion) de plusieurs runs |
 | `nll_sections.py` | bulletin, runs locaux | Netteté des structures : cartes et coupes côte à côte |
+| `nll_coupe_interactive.py` | bulletin, runs locaux | Carte et coupe interactives (profil tracé à la souris) |
 | `dd_shifts.py` | scrtdd | Déplacements avant → après relocalisation |
 | `dd_residuals.py` | scrtdd | Résidus avant / après, par station, double différence |
 | `dd_links.py` | scrtdd | Liens DD par événement, clusters, contrôle de la corrélation croisée |
@@ -125,6 +126,19 @@ Sorties, par sous-ensemble : `metrics.csv`, `maps.png`, `sections.png`.
 > Le quadrillage rend la sismicité artificiellement « nette » : la part de
 > plus proches voisins confondus (< 10 m) le signale. À lire avec
 > `nll_gridding.py`.
+
+### `nll_coupe_interactive.py` — carte et coupe interactives
+
+Ouvre une fenêtre matplotlib : la carte des épicentres à gauche, colorés par
+profondeur, et une coupe à droite. Cliquer-glisser sur la carte trace un
+nouveau profil. Des boutons choisissent le run (ceux de
+`compare.nll_authors`, ou l'origine de référence LOCSAT) et limitent
+l'affichage aux événements A+B ; un curseur règle la demi-largeur de la
+bande projetée. Cliquer sur un séisme de la coupe affiche son identifiant,
+sa profondeur, son RMS, ses incertitudes et sa classe. Le profil de départ
+est le premier de `map.sections`.
+
+Sortie : aucune (la barre d'outils permet d'enregistrer la figure).
 
 ### `dd_shifts.py` — déplacements de relocalisation
 
@@ -305,6 +319,7 @@ LocQuality_ToolBox/
 ├── nll_gridding.py         ← quadrillage (octree) et paliers de profondeur
 ├── nll_station_residuals.py ← résidus par station
 ├── nll_sections.py         ← netteté des structures (cartes et coupes)
+├── nll_coupe_interactive.py ← carte et coupe interactives
 ├── dd_shifts.py            ← déplacements scrtdd
 ├── dd_residuals.py         ← résidus scrtdd
 ├── dd_links.py             ← liens DD et corrélation croisée
