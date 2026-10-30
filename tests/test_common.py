@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from loc_common import (
     ScrtddRun,
     classify_quality,
+    dates_to_num,
     horizontal_shift_km,
     load_bulletin,
     load_config,
@@ -111,6 +112,14 @@ def test_project_on_section_east_west():
     assert list(mask) == [True, False, False]
 
 
+def test_dates_to_num_iso_and_timezone():
+    # Chaînes ISO et dates avec fuseau donnent la même valeur (UTC) ; un jour = 1
+    t = dates_to_num(["2026-10-16T18:19:01Z", "2026-10-17T18:19:01.5Z"])
+    tz = dates_to_num(pd.to_datetime(["2026-10-16T18:19:01Z"], utc=True))
+    assert t[0] == pytest.approx(tz[0])
+    assert t[1] - t[0] == pytest.approx(1 + 0.5 / 86400)
+
+
 def test_match_by_time_with_tolerance():
     left = pd.to_datetime(["2024-01-01 00:00:00.4", "2024-01-01 00:10:00.0"], utc=True)
     right = pd.to_datetime(["2024-01-01 00:05:00", "2024-01-01 00:00:00"], utc=True)
@@ -155,6 +164,19 @@ def test_scrtdd_shifts_and_ids(tmp_path):
     assert sh["dn_km"].iloc[0] == pytest.approx(1.112, abs=1e-3)
     ids = run.seiscomp_ids()
     assert ids.set_index("id")["event_id"].to_dict() == {1: "evA", 2: "evB"}
+
+
+def test_scrtdd_run_reloc_catalog_inputs(tmp_path):
+    # Lancé avec --reloc-catalog : event.csv / station.csv au lieu d'input-*
+    _write_scrtdd_run(tmp_path, nested=False)
+    (tmp_path / "input-event.csv").rename(tmp_path / "event.csv")
+    (tmp_path / "station.csv").write_text(
+        "latitude,longitude,elevation,networkCode,stationCode,locationCode\n"
+        "44.5,6.8,1000.0,FR,OGXX,00\n")
+    run = ScrtddRun(tmp_path)
+    assert len(run.input_events()) == 2
+    assert run.shifts()["dz_km"].iloc[0] == pytest.approx(-1.0)
+    assert list(run.stations()["stationCode"]) == ["OGXX"]
 
 
 def test_scrtdd_run_requires_reloc_event(tmp_path):

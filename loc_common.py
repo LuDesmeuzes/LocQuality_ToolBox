@@ -18,6 +18,7 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
+import matplotlib.dates as mdates
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -403,7 +404,10 @@ class ScrtddRun:
     run_dir est le dossier qui contient reloc-event.csv. Selon la façon dont
     scrtdd a été lancé, les fichiers d'entrée et par cluster sont soit dans ce
     même dossier, soit dans un sous-dossier multievent_<date>_<pid>/ : les
-    deux cas sont gérés.
+    deux cas sont gérés. Lancé avec --reloc-catalog (fichiers de
+    scrtdd_inputs.py de NonLinLoc_ToolBox), scrtdd n'écrit pas d'input-* :
+    les positions de départ et les stations sont alors lues dans les
+    event.csv et station.csv passés en entrée.
 
     L'id des événements scrtdd est le numéro de ligne (à partir de 1) dans la
     liste d'origines passée à scrtdd (eventlist_*.csv produit par sclistorg) :
@@ -439,8 +443,13 @@ class ScrtddRun:
             df["time"] = pd.to_datetime(df["isotime"], utc=True, format="ISO8601")
         return df
 
+    def _input(self, kind):
+        """input-<kind>.csv, ou <kind>.csv du run lancé avec --reloc-catalog."""
+        path = self.work_dir / f"input-{kind}.csv"
+        return path if path.exists() else self.run_dir / f"{kind}.csv"
+
     def input_events(self):
-        return self._with_time(self._read(self.work_dir / "input-event.csv"))
+        return self._with_time(self._read(self._input("event")))
 
     def reloc_events(self):
         return self._with_time(self._read(self.run_dir / "reloc-event.csv"))
@@ -449,7 +458,7 @@ class ScrtddRun:
         return self._read(self.run_dir / "reloc-phase.csv")
 
     def stations(self):
-        df = self._read(self.work_dir / "input-station.csv")
+        df = self._read(self._input("station"))
         return df if not df.empty else self._read(self.run_dir / "reloc-station.csv")
 
     def xcorr(self):
@@ -573,6 +582,7 @@ def match_by_time(left_times, right_times, tolerance_s):
 SERIES = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
           "#e87ba4", "#008300", "#6250d6", "#e34948"]
 SEQ_BLUE = ["#9ec5f4", "#5598e7", "#256abf", "#0d366b"]
+SEQ_BLUE_CMAP = matplotlib.colors.LinearSegmentedColormap.from_list("seq_blue", SEQ_BLUE)
 INK = "#0b0b0b"
 INK_MUTED = "#52514e"
 GRID = "#e4e3df"
@@ -626,12 +636,31 @@ def hist_compare(ax, series_by_label, bins, xlabel):
     ax.legend(loc="upper right")
 
 
+def dates_to_num(times):
+    """Dates (chaînes ISO ou datetime, avec ou sans fuseau) → nombres de matplotlib (UTC)."""
+    t = pd.to_datetime(pd.Series(times), utc=True, format="ISO8601").dt.tz_convert(None)
+    return mdates.date2num(t)
+
+
+def _scatter_layer(ax, x, y, layer, t, norm):
+    """Points d'une couche : couleur fixe, ou date (t) sur SEQ_BLUE, les plus récents dessus."""
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    kw = {"s": layer.get("size", 4), "linewidths": 0, "zorder": 2}
+    if t is None:
+        return ax.scatter(x, y, color=layer["color"], **kw)
+    order = np.argsort(t)
+    return ax.scatter(x[order], y[order], c=t[order], cmap=SEQ_BLUE_CMAP, norm=norm, **kw)
+
+
 def map_and_sections(layers, sections, title, path, vectors=None, stations=None,
                      zone=None):
     """
     Carte + une coupe en profondeur par profil de config.sections.
 
-    layers   : liste de dicts {lon, lat, depth, label, color, [size]}
+    layers   : liste de dicts {lon, lat, depth, label, color, [size], [time]} ;
+               avec time (dates des événements), les points sont colorés par
+               date sur la rampe SEQ_BLUE (échelle commune à toutes les couches
+               qui en ont une) et une échelle de couleur est ajoutée
     vectors  : dict optionnel {lon0, lat0, depth0, lon1, lat1, depth1} pour
                tracer les déplacements (point 0 → point 1)
     stations : DataFrame optionnel avec colonnes longitude, latitude (+ code)
@@ -646,14 +675,18 @@ def map_and_sections(layers, sections, title, path, vectors=None, stations=None,
 
     all_lat = np.concatenate([np.asarray(l["lat"], dtype=float) for l in layers])
     lat0 = np.nanmean(all_lat) if len(all_lat) else 45.0
+    times = [dates_to_num(l["time"]) if l.get("time") is not None else None for l in layers]
+    dated = [t for t in times if t is not None]
+    norm = (matplotlib.colors.Normalize(min(t.min() for t in dated), max(t.max() for t in dated))
+            if dated else None)
 
     if vectors is not None:
         ax.plot(np.vstack([vectors["lon0"], vectors["lon1"]]),
                 np.vstack([vectors["lat0"], vectors["lat1"]]),
                 color=INK_MUTED, linewidth=0.4, alpha=0.6, zorder=1)
-    for l in layers:
-        ax.scatter(l["lon"], l["lat"], s=l.get("size", 4), color=l["color"],
-                   label=f"{l['label']} (n={len(l['lon'])})", linewidths=0, zorder=2)
+    for l, t in zip(layers, times):
+        sc = _scatter_layer(ax, l["lon"], l["lat"], l, t, norm)
+        sc.set_label(f"{l['label']} (n={len(l['lon'])})")
     if stations is not None and not stations.empty:
         ax.scatter(stations["longitude"], stations["latitude"], marker="^", s=40,
                    facecolor="none", edgecolor=INK, linewidths=1, label="Stations", zorder=3)
@@ -681,14 +714,21 @@ def map_and_sections(layers, sections, title, path, vectors=None, stations=None,
             ax.plot(np.vstack([a0[m], a1[m]]),
                     np.vstack([np.asarray(vectors["depth0"])[m], np.asarray(vectors["depth1"])[m]]),
                     color=INK_MUTED, linewidth=0.4, alpha=0.6, zorder=1)
-        for l in layers:
+        for l, t in zip(layers, times):
             along, m = project_on_section(l["lon"], l["lat"], sec)
-            ax.scatter(along[m], np.asarray(l["depth"])[m], s=l.get("size", 4),
-                       color=l["color"], linewidths=0, zorder=2)
+            _scatter_layer(ax, along[m], np.asarray(l["depth"])[m], l,
+                           None if t is None else t[m], norm)
         ax.invert_yaxis()
         ax.set_aspect("equal", adjustable="datalim")
         ax.set_xlabel("Distance le long du profil (km)")
         ax.set_ylabel("Profondeur (km)")
         ax.set_title(f"Coupe {sec.get('name', '')} (±{sec.get('half_width_km', 2.0)} km)")
 
+    if norm is not None:
+        cbar = fig.colorbar(matplotlib.cm.ScalarMappable(norm=norm, cmap=SEQ_BLUE_CMAP),
+                            ax=list(axes), shrink=0.8, pad=0.02)
+        locator = mdates.AutoDateLocator()
+        cbar.ax.yaxis.set_major_locator(locator)
+        cbar.ax.yaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
+        cbar.set_label("Date")
     save(fig, path)

@@ -24,7 +24,8 @@ paths:
 
   # Dossier d'un run scrtdd multi-événements : celui qui contient
   # reloc-event.csv (les fichiers input-*.csv et cluster-*.csv peuvent être
-  # dans un sous-dossier multievent_*/, ils sont trouvés automatiquement)
+  # dans un sous-dossier multievent_*/, ils sont trouvés automatiquement ;
+  # run lancé avec --reloc-catalog : event.csv et station.csv à la place)
   scrtdd_run_dir: "/path/to/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
 
   # Liste d'origines passée à scrtdd (sortie de sclistorg). Laisser vide pour

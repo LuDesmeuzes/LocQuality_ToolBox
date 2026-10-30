@@ -184,7 +184,13 @@ Compare les runs listés dans `compare.scrtdd_runs` (étiquette → dossier) :
 taux de relocalisation, déplacements, RMS DD, résidus absolus, qualité de la
 corrélation croisée.
 
-Sorties : `runs.csv`, `compare.png`, `map_<run>.png`.
+Sorties : `runs.csv`, `compare.png`, `map_<run>.png`, `map_<run>_temps.png`
+(mêmes carte et coupes, événements colorés par date) et `profondeur_temps.png`
+(profondeur en fonction du temps, un panneau par run) pour suivre une
+migration de la sismicité.
+
+Les runs lancés avec `--reloc-catalog` (fichiers de `scrtdd_inputs.py`) sont
+lus aussi : positions de départ dans `event.csv`, stations dans `station.csv`.
 
 ### `summary_table.py` — tableau récapitulatif
 
@@ -240,7 +246,10 @@ Les localisations rejetées par NLLoc (`REJECTED`) ne sont pas gardées.
 Le dossier qui contient `reloc-event.csv`. Les fichiers d'entrée et par
 cluster (`input-*.csv`, `cluster-N-*.csv`, `xcorr.csv`) peuvent être dans ce
 dossier ou dans un sous-dossier `multievent_<date>_<pid>/` : ils sont
-trouvés automatiquement. L'eventlist (`eventlist*.csv`) est cherchée dans le
+trouvés automatiquement. Lancé avec `--reloc-catalog` (fichiers de
+`scrtdd_inputs.py` de NonLinLoc_ToolBox), scrtdd n'écrit pas d'`input-*.csv` :
+les positions de départ et les stations sont alors lues dans `event.csv` et
+`station.csv`. L'eventlist (`eventlist*.csv`) est cherchée dans le
 même dossier, sauf si `paths.scrtdd_eventlist` est renseigné.
 
 ## Installation

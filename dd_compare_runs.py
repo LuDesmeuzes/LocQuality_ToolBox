@@ -12,6 +12,9 @@ Sorties (dans <output_dir>/dd_compare_runs/) :
   - runs.csv          : un indicateur par colonne, un run par ligne
   - compare.png       : distributions des déplacements et des RMS DD par run
   - map_<run>.png     : carte et coupes de chaque run relocalisé
+  - map_<run>_temps.png : idem, événements colorés par date
+  - profondeur_temps.png : profondeur des événements relocalisés en fonction
+                        du temps, un panneau par run (migration verticale)
 
 Utilisation :
     python dd_compare_runs.py
@@ -102,6 +105,21 @@ def main():
               "label": label, "color": SERIES[i]}],
             map_cfg.get("sections"), f"Run {label}", out / f"map_{label}.png",
             zone=map_cfg.get("zone"))
+        map_and_sections(
+            [{"lon": sh["longitude"], "lat": sh["latitude"], "depth": sh["depth"],
+              "label": label, "color": SERIES[i], "time": sh["time"]}],
+            map_cfg.get("sections"), f"Run {label} : date des événements",
+            out / f"map_{label}_temps.png", zone=map_cfg.get("zone"))
+
+    fig, axes = plt.subplots(len(shifts), 1, figsize=(10, 3 * len(shifts)),
+                             sharex=True, sharey=True, squeeze=False)
+    for i, (ax, (label, sh)) in enumerate(zip(axes[:, 0], shifts.items())):
+        ax.scatter(sh["time"], sh["depth"], s=5, color=SERIES[i], linewidths=0)
+        ax.set_ylabel("Profondeur (km)")
+        ax.set_title(f"Run {label} (n={len(sh)})")
+    axes[0, 0].invert_yaxis()
+    axes[-1, 0].set_xlabel("Date (UTC)")
+    save(fig, out / "profondeur_temps.png")
 
 
 if __name__ == "__main__":
