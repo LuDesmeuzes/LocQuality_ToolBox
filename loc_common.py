@@ -2,7 +2,7 @@
 loc_common.py
 =============
 Fonctions partagées par tous les scripts d'analyse :
-  - lecture de la configuration YAML et interface en ligne de commande
+  - lecture de la configuration YAML (chemins relatifs à `racine`) et interface en ligne de commande
   - lecture des bulletins SeisComP « purifiés » (sortie de purify_cat.py)
   - lecture des sorties scrtdd (eventlist, input-*.csv, reloc-*.csv, cluster-*.csv)
   - conversions géographiques simples (déplacements en km, coupes)
@@ -34,9 +34,26 @@ NLL_METHOD = "NonLinLoc"
 # CONFIGURATION / CLI / LOG
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Dossier de travail par défaut : celui de NonLinLoc_ToolBox (NonLinLoc_travail/
+# à côté des dépôts), où sont ses runs et ses profils.
+DEFAULT_ROOT = Path(__file__).resolve().parent.parent / "NonLinLoc_travail"
+
+
+def resolve_path(value, root):
+    """Chemin absolu : ~ développé, relatif à `root` s'il n'est pas absolu."""
+    path = Path(str(value)).expanduser()
+    return str(path if path.is_absolute() else Path(root) / path)
+
+
 def load_config(config_path):
     """
-    Charge un fichier de configuration YAML.
+    Charge un fichier de configuration YAML et complète ses chemins.
+
+    Les chemins des données (paths.bulletin, paths.nll_runs,
+    paths.scrtdd_run_dir, paths.scrtdd_eventlist, compare.scrtdd_runs,
+    gridding.topo) sont relatifs au dossier `racine` (défaut : celui de
+    NonLinLoc_ToolBox, NonLinLoc_travail/ à côté des dépôts) quand ils ne
+    sont pas absolus. paths.output_dir reste relatif au dépôt.
 
     Si le fichier n'existe pas, lève une erreur explicite invitant
     à copier config.example.yaml → config.yaml et à l'adapter.
@@ -53,6 +70,22 @@ def load_config(config_path):
         config = yaml.safe_load(f)
     if not config:
         raise ValueError(f"Fichier de configuration vide ou invalide : {config_path}")
+
+    root = Path(resolve_path(config.get("racine") or DEFAULT_ROOT, config_path.resolve().parent))
+    config["racine"] = str(root)
+    paths = config.get("paths") or {}
+    for key in ("bulletin", "nll_runs", "scrtdd_run_dir", "scrtdd_eventlist"):
+        value = paths.get(key)
+        if isinstance(value, list):
+            paths[key] = [resolve_path(v, root) for v in value]
+        elif value:
+            paths[key] = resolve_path(value, root)
+    runs = (config.get("compare") or {}).get("scrtdd_runs") or {}
+    for label, value in runs.items():
+        runs[label] = resolve_path(value, root)
+    gridding = config.get("gridding") or {}
+    if gridding.get("topo"):
+        gridding["topo"] = resolve_path(gridding["topo"], root)
     return config
 
 

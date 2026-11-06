@@ -50,6 +50,27 @@ def bulletin(tmp_path):
     return read_bulletin(path)
 
 
+def test_load_config_paths_relative_to_racine(tmp_path):
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        "racine: travail\n"
+        "paths:\n  bulletin: [b/un.csv, /abs/deux.csv]\n  nll_runs: [runs/r1]\n"
+        "  scrtdd_run_dir: scrtdd/v1\n  scrtdd_eventlist: null\n  output_dir: outputs\n"
+        "compare:\n  scrtdd_runs: {v1: scrtdd/v1, v2: ~/v2}\n"
+        "gridding:\n  topo: profils/p/topo.asc\n", encoding="utf-8")
+    config = load_config(config_path)
+    root = tmp_path / "travail"
+    assert config["racine"] == str(root)
+    assert config["paths"]["bulletin"] == [str(root / "b/un.csv"), "/abs/deux.csv"]
+    assert config["paths"]["nll_runs"] == [str(root / "runs/r1")]
+    assert config["paths"]["scrtdd_run_dir"] == str(root / "scrtdd/v1")
+    assert config["paths"]["scrtdd_eventlist"] is None
+    assert config["paths"]["output_dir"] == "outputs"
+    assert config["compare"]["scrtdd_runs"] == {"v1": str(root / "scrtdd/v1"),
+                                                "v2": str(Path("~/v2").expanduser())}
+    assert config["gridding"]["topo"] == str(root / "profils/p/topo.asc")
+
+
 def test_load_config_missing_file_gives_explicit_error(tmp_path):
     with pytest.raises(FileNotFoundError, match="config.example.yaml"):
         load_config(tmp_path / "config.yaml")

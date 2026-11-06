@@ -8,25 +8,33 @@
 #
 # config.yaml n'est PAS versionné (voir .gitignore) car il contient des
 # chemins propres à chaque poste de travail.
+#
+# Les chemins des données sont relatifs à `racine`, sauf s'ils sont absolus
+# (/… ou ~/…) ; paths.output_dir est relatif au dépôt.
 # ═══════════════════════════════════════════════════════════════════════════
+
+# Dossier de travail, le même que celui de NonLinLoc_ToolBox (runs/,
+# profils/…). Absent → NonLinLoc_travail/ à côté des dépôts. Exemple :
+# racine: ~/Documents/Boulot/Localisation
 
 paths:
   # Bulletin SeisComP purifié (sortie de purify_cat.py) : une ligne par
   # origine, avec l'origine manuelle (LOCSAT) et la ou les origines NLL de
   # chaque événement. Un fichier coupled_*.csv fonctionne aussi.
   # Un chemin ou une liste de chemins ; peut être vide si nll_runs est renseigné.
-  bulletin: "/path/to/Bulletin/purified_1_ubaye_topo_v2.csv"
+  bulletin: "donnees/bulletins/purified_1_ubaye_topo_v2.csv"
 
   # Runs NLL en ligne de commande (dossiers écrits par nll_run.py de
   # NonLinLoc_ToolBox). Chacun apparaît comme un run NLL de plus, sous son
   # nom (valeur à utiliser dans nll.author ou compare.nll_authors).
+  # Exemple : [runs/exemple_jura_1D_20240301_20240331]
   nll_runs: []
 
   # Dossier d'un run scrtdd multi-événements : celui qui contient
   # reloc-event.csv (les fichiers input-*.csv et cluster-*.csv peuvent être
   # dans un sous-dossier multievent_*/, ils sont trouvés automatiquement ;
   # run lancé avec --reloc-catalog : event.csv et station.csv à la place)
-  scrtdd_run_dir: "/path/to/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
+  scrtdd_run_dir: "scrtdd/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
 
   # Liste d'origines passée à scrtdd (sortie de sclistorg). Laisser vide pour
   # chercher automatiquement un eventlist*.csv dans scrtdd_run_dir.
@@ -67,9 +75,9 @@ compare:
 
   # Runs scrtdd à comparer : étiquette → dossier (contenant reloc-event.csv)
   scrtdd_runs:
-    cc_3km: "/path/to/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
-    cc_4km: "/path/to/scrtdd-test/run-with-cc/c05_4km_80km/12_2024_02_2025"
-    cc_5km: "/path/to/scrtdd-test/run-with-cc/c05_5km_80km/12_2024_02_2025"
+    cc_3km: "scrtdd/scrtdd-test/run-with-cc/c05_3km_80km/12_2024_02_2025"
+    cc_4km: "scrtdd/scrtdd-test/run-with-cc/c05_4km_80km/12_2024_02_2025"
+    cc_5km: "scrtdd/scrtdd-test/run-with-cc/c05_5km_80km/12_2024_02_2025"
 
 # ── Cartes et coupes ────────────────────────────────────────────────────────
 map:
@@ -99,7 +107,7 @@ gridding:
   # Grille topographique au format ASCII GMT 4 (le topo.asc de
   # LOCTOPO_SURFACE) pour compter les événements au-dessus du relief.
   # null → pas de test.
-  topo: "/path/to/profils/1_ubaye_topo/topo_corrige.asc"
+  topo: "profils/1_ubaye_topo/topo_corrige.asc"
 
   # Demi-largeur (km) de la fenêtre autour d'une profondeur entière pour
   # compter un palier (et pour le toit de la grille)

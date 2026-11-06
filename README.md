@@ -257,8 +257,11 @@ même dossier, sauf si `paths.scrtdd_eventlist` est renseigné.
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt # seulement la première fois sauf si changement dans le requirements.txt
+pip install -r requirements.txt
 ```
+
+`pip install` n'est à refaire que si `requirements.txt` change ;
+`source .venv/bin/activate`, dans chaque nouveau terminal.
 
 ## Configuration
 
@@ -270,10 +273,14 @@ cp config.example.yaml config.yaml
 ```
 
 Puis éditer `config.yaml` :
+- `racine` : le dossier de travail. C'est le même que celui de NonLinLoc_ToolBox
+  (défaut : `NonLinLoc_travail/` à côté des dépôts). Les chemins des
+  données qui suivent en partent, sauf s'ils sont absolus (`/…` ou `~/…`) :
+  `nll_runs: [runs/exemple_jura_1D_20240301_20240331]` suffit, par exemple.
 - `paths.bulletin` : le bulletin purifié (ou une liste de bulletins)
 - `paths.nll_runs` : les runs NLL locaux à analyser avec le bulletin
 - `paths.scrtdd_run_dir` : le dossier du run scrtdd à analyser
-- `paths.output_dir` : où écrire les résultats (défaut `outputs/`)
+- `paths.output_dir` : où écrire les résultats (défaut `outputs/`, relatif au dépôt)
 - `nll.author` : le run NLL à analyser (valeur de la colonne `Author`)
 - `nll.quality_classes` : les seuils des classes de qualité
 - `compare.*` : les runs NLL et scrtdd à comparer
