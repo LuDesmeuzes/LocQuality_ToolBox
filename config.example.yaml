@@ -13,7 +13,7 @@
 # (/… ou ~/…) ; paths.output_dir est relatif au dépôt.
 # ═══════════════════════════════════════════════════════════════════════════
 
-# Dossier de travail, le même que celui de NonLinLoc_ToolBox (runs/,
+# Dossier de travail, le même que celui de Loc_ToolBox (runs/,
 # profils/…). Absent → NonLinLoc_travail/ à côté des dépôts. Exemple :
 # racine: ~/Documents/Boulot/Localisation
 
@@ -25,7 +25,7 @@ paths:
   bulletin: "donnees/bulletins/purified_1_ubaye_topo_v2.csv"
 
   # Runs NLL en ligne de commande (dossiers écrits par nll_run.py de
-  # NonLinLoc_ToolBox). Chacun apparaît comme un run NLL de plus, sous son
+  # Loc_ToolBox). Chacun apparaît comme un run NLL de plus, sous son
   # nom (valeur à utiliser dans nll.author ou compare.nll_authors).
   # Exemple : [runs/exemple_jura_1D_20240301_20240331]
   nll_runs: []
@@ -123,3 +123,27 @@ summary:
 residuals:
   # Nombre minimal de résidus pour qu'une station soit montrée et comptée
   min_count: 50
+
+# ── Run local contre SeisComP (nll_local_vs_seiscomp.py) ────────────────────
+# Même profil et mêmes pointés des deux côtés : run local de nll_run.py, et
+# sorties de screloc --ep sur les XML journaliers du cache (étape 6 de
+# l'INSTALLER.txt de profil_vers_seiscomp.py, Loc_ToolBox).
+local_vs_seiscomp:
+  # Dossier du run local
+  run: "runs/05_ubaye_1D_topo_v2_20241101_20241130"
+  # Dossier des XML écrits par screloc (rapatriés)
+  screloc: "runs/screloc_05_ubaye_1D_topo_v2"
+  # Suffixe des origines relocalisées (option --origin-id-suffix de screloc)
+  id_suffix: ".nll"
+  # Écart 3D (m) en dessous duquel deux positions sont dites identiques
+  tolerance_m: 10
+
+# ── Export pour l'outil d'analyse de catalogues (export_catalogues.py) ──────
+# Un CSV par catalogue, à glisser dans la page de l'outil.
+export:
+  # Runs NLL (valeurs de Author). Liste vide → compare.nll_authors.
+  nll_authors: []
+  # Runs scrtdd : étiquette → dossier. Vide → compare.scrtdd_runs.
+  scrtdd_runs: {}
+  # Exporter aussi les origines de référence (LOCSAT)
+  reference: true

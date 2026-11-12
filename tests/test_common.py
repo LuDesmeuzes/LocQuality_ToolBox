@@ -23,6 +23,7 @@ from loc_common import (
     read_nll_hyp,
     read_nll_phases,
     read_nll_run,
+    read_scml_origins,
     reference_origins,
 )
 
@@ -57,6 +58,7 @@ def test_load_config_paths_relative_to_racine(tmp_path):
         "paths:\n  bulletin: [b/un.csv, /abs/deux.csv]\n  nll_runs: [runs/r1]\n"
         "  scrtdd_run_dir: scrtdd/v1\n  scrtdd_eventlist: null\n  output_dir: outputs\n"
         "compare:\n  scrtdd_runs: {v1: scrtdd/v1, v2: ~/v2}\n"
+        "export:\n  scrtdd_runs: {v3: scrtdd/v3}\n"
         "gridding:\n  topo: profils/p/topo.asc\n", encoding="utf-8")
     config = load_config(config_path)
     root = tmp_path / "travail"
@@ -68,6 +70,7 @@ def test_load_config_paths_relative_to_racine(tmp_path):
     assert config["paths"]["output_dir"] == "outputs"
     assert config["compare"]["scrtdd_runs"] == {"v1": str(root / "scrtdd/v1"),
                                                 "v2": str(Path("~/v2").expanduser())}
+    assert config["export"]["scrtdd_runs"] == {"v3": str(root / "scrtdd/v3")}
     assert config["gridding"]["topo"] == str(root / "profils/p/topo.asc")
 
 
@@ -145,6 +148,12 @@ def test_match_by_time_with_tolerance():
     left = pd.to_datetime(["2024-01-01 00:00:00.4", "2024-01-01 00:10:00.0"], utc=True)
     right = pd.to_datetime(["2024-01-01 00:05:00", "2024-01-01 00:00:00"], utc=True)
     assert list(match_by_time(left, right, 1.0)) == [1, -1]
+
+
+def test_match_by_time_mixed_resolutions():
+    left = pd.Series(pd.to_datetime(["2024-01-01 00:00:00.4"], utc=True)).astype("datetime64[us, UTC]")
+    right = pd.Series(pd.to_datetime(["2024-01-01 00:00:00"], utc=True)).astype("datetime64[ns, UTC]")
+    assert list(match_by_time(left, right, 1.0)) == [0]
 
 
 def _write_scrtdd_run(root, nested):
@@ -286,3 +295,50 @@ def test_quality_subsets_same_events_for_all_runs(bulletin):
     # ev2 est commun aux deux runs ; il est en classe D pour run_a (erh 9 km)
     assert subsets["tous"] == {"ev2"}
     assert subsets["A_B"] == set()
+
+
+SCML = """NLLoc (NonLinLoc v7.00.13 17Jan2022)
+Locating...
+<?xml version="1.0" encoding="UTF-8"?>
+<seiscomp xmlns="http://geofon.gfz-potsdam.de/ns/seiscomp3-schema/0.13" version="0.13">
+  <EventParameters>
+    <pick publicID="pk1"><waveformID networkCode="FR" stationCode="SURF"/></pick>
+    <origin publicID="Origin/1">
+      <time><value>2024-11-05T22:25:10.5Z</value></time>
+      <latitude><value>44.5</value></latitude><longitude><value>6.8</value></longitude>
+      <depth><value>5.0</value></depth><methodID>LOCSAT</methodID>
+    </origin>
+    <origin publicID="Origin/1.nll">
+      <time><value>2024-11-05T22:25:10.51Z</value></time>
+      <latitude><value>44.51</value><uncertainty>0.6</uncertainty></latitude>
+      <longitude><value>6.85</value><uncertainty>0.8</uncertainty></longitude>
+      <depth><value>4.5</value><uncertainty>0.9</uncertainty></depth>
+      <methodID>NonLinLoc</methodID><earthModelID>p1</earthModelID>
+      <quality><usedPhaseCount>8</usedPhaseCount><standardError>0.03</standardError>
+        <azimuthalGap>237.8</azimuthalGap></quality>
+      <creationInfo><author>screloc@ist-oar</author></creationInfo>
+      <arrival><pickID>pk1</pickID><phase>Sg</phase><distance>0.05</distance>
+        <timeResidual>0.016</timeResidual><timeUsed>false</timeUsed><weight>0</weight></arrival>
+    </origin>
+    <event publicID="ev1"><preferredOriginID>Origin/1</preferredOriginID>
+      <originReference>Origin/1</originReference></event>
+  </EventParameters>
+</seiscomp>
+"""
+
+
+def test_read_scml_origins(tmp_path):
+    path = tmp_path / "2024-11-05.xml"
+    path.write_text(SCML)
+    origins, arrivals = read_scml_origins(path)
+    assert list(origins["origin_id"]) == ["Origin/1", "Origin/1.nll"]
+    assert origins["event_id"].iat[0] == "ev1" and pd.isna(origins["event_id"].iat[1])
+    origins, arrivals = read_scml_origins(path, id_suffix=".nll")
+    nll = origins.set_index("origin_id").loc["Origin/1.nll"]
+    assert nll["event_id"] == "ev1" and nll["earth_model"] == "p1"
+    assert nll["nphs"] == 8 and nll["rms"] == pytest.approx(0.03)
+    assert nll["erh_km"] == pytest.approx(0.8) and nll["depth_unc_km"] == pytest.approx(0.9)
+    assert str(nll["time"].tz) == "UTC"
+    a = arrivals.iloc[0]
+    assert (a["station"], a["network"], a["phase_type"]) == ("SURF", "FR", "S")
+    assert not a["time_used"] and a["dist_km"] == pytest.approx(0.05 * 111.195)

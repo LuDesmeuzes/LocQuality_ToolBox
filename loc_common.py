@@ -34,7 +34,7 @@ NLL_METHOD = "NonLinLoc"
 # CONFIGURATION / CLI / LOG
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Dossier de travail par défaut : celui de NonLinLoc_ToolBox (NonLinLoc_travail/
+# Dossier de travail par défaut : celui de Loc_ToolBox (NonLinLoc_travail/
 # à côté des dépôts), où sont ses runs et ses profils.
 DEFAULT_ROOT = Path(__file__).resolve().parent.parent / "NonLinLoc_travail"
 
@@ -51,8 +51,9 @@ def load_config(config_path):
 
     Les chemins des données (paths.bulletin, paths.nll_runs,
     paths.scrtdd_run_dir, paths.scrtdd_eventlist, compare.scrtdd_runs,
-    gridding.topo) sont relatifs au dossier `racine` (défaut : celui de
-    NonLinLoc_ToolBox, NonLinLoc_travail/ à côté des dépôts) quand ils ne
+    export.scrtdd_runs,
+    gridding.topo, local_vs_seiscomp.run et .screloc) sont relatifs au dossier `racine` (défaut : celui de
+    Loc_ToolBox, NonLinLoc_travail/ à côté des dépôts) quand ils ne
     sont pas absolus. paths.output_dir reste relatif au dépôt.
 
     Si le fichier n'existe pas, lève une erreur explicite invitant
@@ -80,9 +81,14 @@ def load_config(config_path):
             paths[key] = [resolve_path(v, root) for v in value]
         elif value:
             paths[key] = resolve_path(value, root)
-    runs = (config.get("compare") or {}).get("scrtdd_runs") or {}
-    for label, value in runs.items():
-        runs[label] = resolve_path(value, root)
+    for section in ("compare", "export"):
+        runs = (config.get(section) or {}).get("scrtdd_runs") or {}
+        for label, value in runs.items():
+            runs[label] = resolve_path(value, root)
+    versus = config.get("local_vs_seiscomp") or {}
+    for key in ("run", "screloc"):
+        if versus.get(key):
+            versus[key] = resolve_path(versus[key], root)
     gridding = config.get("gridding") or {}
     if gridding.get("topo"):
         gridding["topo"] = resolve_path(gridding["topo"], root)
@@ -179,7 +185,7 @@ def read_bulletin(path):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# RUNS NLL EN LIGNE DE COMMANDE (nll_run.py de NonLinLoc_ToolBox)
+# RUNS NLL EN LIGNE DE COMMANDE (nll_run.py de Loc_ToolBox)
 # ─────────────────────────────────────────────────────────────────────────────
 
 # Valeurs lues dans chaque bloc NLLOC … END_NLLOC d'un .hyp
@@ -322,6 +328,120 @@ def load_nll_phases(config, authors=None):
     return pd.concat(frames, ignore_index=True)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# ORIGINES SEISCOMP EN XML (SCML : screloc --ep, exports scxmldump)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _local(tag):
+    """Nom d'une balise XML sans son espace de noms ({…}origin → origin)."""
+    return tag.rsplit("}", 1)[-1]
+
+
+def _child(elem, *path):
+    """Texte de elem/path[0]/path[1]/… (espace de noms ignoré), None si absent."""
+    for name in path:
+        elem = next((c for c in elem if _local(c.tag) == name), None)
+        if elem is None:
+            return None
+    return elem.text
+
+
+def _float(value):
+    return float(value) if value not in (None, "") else np.nan
+
+
+def read_scml_origins(path, id_suffix=None):
+    """
+    Lit les origines d'un fichier XML SeisComP (SCML), par exemple une
+    sortie de screloc --ep. Le texte avant <?xml (messages de NLLoc écrits
+    sur la même sortie que le XML) est ignoré.
+
+    id_suffix : suffixe ajouté par screloc --origin-id-suffix ; une origine
+    <id><suffixe> qu'aucun événement ne référence prend l'événement de
+    l'origine <id> (screloc --ep ne rattache pas ses origines aux événements).
+
+    Renvoie (origins, arrivals) :
+      - origins : une ligne par origine : origin_id, event_id (événement dont
+        c'est l'origine préférée ou une origine référencée, None sinon),
+        time, latitude, longitude, depth, incertitudes en km (lat_unc_km,
+        lon_unc_km, depth_unc_km, convention SeisComP), erh_km, rms
+        (standardError, s), nphs (usedPhaseCount), gap, method, author,
+        earth_model, evaluation_mode ;
+      - arrivals : une ligne par arrivée : origin_id, pick_id, station,
+        network, phase, phase_type (P ou S), residual_s, weight, time_used,
+        dist_km.
+    """
+    import xml.etree.ElementTree as ET
+
+    text = Path(path).read_text()
+    start = text.find("<?xml")
+    if start < 0:
+        raise ValueError(f"Pas de XML dans {path}")
+    root = ET.fromstring(text[start:].encode())
+    params = next((e for e in root if _local(e.tag) == "EventParameters"), root)
+
+    stations, event_of = {}, {}
+    for elem in params:
+        name = _local(elem.tag)
+        if name == "pick":
+            wf = next((c for c in elem if _local(c.tag) == "waveformID"), None)
+            if wf is not None:
+                stations[elem.get("publicID")] = (wf.get("stationCode"), wf.get("networkCode"))
+        elif name == "event":
+            ev = elem.get("publicID")
+            refs = [_child(elem, "preferredOriginID")] + [
+                _child(c, "originID") if len(c) else c.text
+                for c in elem if _local(c.tag) == "originReference"]
+            for ref in refs:
+                if ref:
+                    event_of.setdefault(ref, ev)
+
+    origins, arrivals = [], []
+    for o in params:
+        if _local(o.tag) != "origin":
+            continue
+        oid = o.get("publicID")
+        event = event_of.get(oid)
+        if event is None and id_suffix and oid.endswith(id_suffix):
+            event = event_of.get(oid[:-len(id_suffix)])
+        origins.append({
+            "origin_id": oid, "event_id": event,
+            "time": pd.Timestamp(_child(o, "time", "value")).tz_convert("UTC")
+                    if _child(o, "time", "value") else pd.NaT,
+            "latitude": _float(_child(o, "latitude", "value")),
+            "lat_unc_km": _float(_child(o, "latitude", "uncertainty")),
+            "longitude": _float(_child(o, "longitude", "value")),
+            "lon_unc_km": _float(_child(o, "longitude", "uncertainty")),
+            "depth": _float(_child(o, "depth", "value")),
+            "depth_unc_km": _float(_child(o, "depth", "uncertainty")),
+            "rms": _float(_child(o, "quality", "standardError")),
+            "nphs": _float(_child(o, "quality", "usedPhaseCount")),
+            "gap": _float(_child(o, "quality", "azimuthalGap")),
+            "method": _child(o, "methodID"),
+            "author": _child(o, "creationInfo", "author"),
+            "earth_model": _child(o, "earthModelID"),
+            "evaluation_mode": _child(o, "evaluationMode"),
+        })
+        for a in o:
+            if _local(a.tag) != "arrival":
+                continue
+            pick = _child(a, "pickID")
+            station, network = stations.get(pick, (None, None))
+            phase = _child(a, "phase") or ""
+            arrivals.append({
+                "origin_id": oid, "pick_id": pick, "station": station, "network": network,
+                "phase": phase, "phase_type": phase[:1].upper(),
+                "residual_s": _float(_child(a, "timeResidual")),
+                "weight": _float(_child(a, "weight")),
+                "time_used": (_child(a, "timeUsed") or "true").lower() == "true",
+                "dist_km": _float(_child(a, "distance")) * KM_PER_DEG,
+            })
+    origins = pd.DataFrame(origins)
+    if not origins.empty:
+        origins["erh_km"] = origins[["lat_unc_km", "lon_unc_km"]].max(axis=1)
+    return origins, pd.DataFrame(arrivals)
+
+
 def quality_subsets(origins_by_run, classes, good_classes):
     """
     Sous-ensembles d'événements pour comparer des runs sur les mêmes
@@ -438,7 +558,7 @@ class ScrtddRun:
     scrtdd a été lancé, les fichiers d'entrée et par cluster sont soit dans ce
     même dossier, soit dans un sous-dossier multievent_<date>_<pid>/ : les
     deux cas sont gérés. Lancé avec --reloc-catalog (fichiers de
-    scrtdd_inputs.py de NonLinLoc_ToolBox), scrtdd n'écrit pas d'input-* :
+    scrtdd_inputs.py de Loc_ToolBox), scrtdd n'écrit pas d'input-* :
     les positions de départ et les stations sont alors lues dans les
     event.csv et station.csv passés en entrée.
 
@@ -595,8 +715,9 @@ def match_by_time(left_times, right_times, tolerance_s):
     tolerance_s près). Renvoie les indices positionnels dans right
     (-1 si pas de correspondance).
     """
-    left = pd.Series(pd.to_datetime(left_times, utc=True)).reset_index(drop=True)
-    right = pd.Series(pd.to_datetime(right_times, utc=True)).reset_index(drop=True)
+    # Même résolution des deux côtés (µs pour l'un, ns pour l'autre selon la lecture)
+    left = pd.Series(pd.to_datetime(left_times, utc=True)).astype("datetime64[ns, UTC]").reset_index(drop=True)
+    right = pd.Series(pd.to_datetime(right_times, utc=True)).astype("datetime64[ns, UTC]").reset_index(drop=True)
     l_df = pd.DataFrame({"t": left, "li": np.arange(len(left))}).sort_values("t")
     r_df = pd.DataFrame({"t": right, "ri": np.arange(len(right))}).sort_values("t")
     merged = pd.merge_asof(l_df, r_df, on="t", direction="nearest",

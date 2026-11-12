@@ -13,6 +13,7 @@ Le code commun (lecture des fichiers, calculs géographiques, style des figures)
 |---|---|---|
 | `nll_quality.py` | bulletin | Classes de qualité A/B/C/D des origines NLL d'un run |
 | `nll_vs_reference.py` | bulletin | Écarts NLL − origine de référence (LOCSAT) |
+| `nll_local_vs_seiscomp.py` | run local, XML screloc | Run local contre SeisComP sur les mêmes pointés : positions identiques ou non, et pourquoi |
 | `nll_compare_runs.py` | bulletin | Comparaison de plusieurs runs NLL |
 | `nll_gridding.py` | bulletin | Quadrillage (octree) et paliers de profondeur des runs NLL |
 | `nll_station_residuals.py` | runs locaux | Résidus par station (biais, dispersion) de plusieurs runs |
@@ -23,6 +24,15 @@ Le code commun (lecture des fichiers, calculs géographiques, style des figures)
 | `dd_links.py` | scrtdd | Liens DD par événement, clusters, contrôle de la corrélation croisée |
 | `dd_compare_runs.py` | scrtdd | Comparaison de plusieurs runs scrtdd |
 | `summary_table.py` | les deux | Tableau récapitulatif par événement |
+| `export_catalogues.py` | les deux | Un CSV par run pour l'outil d'analyse de catalogues dans le navigateur |
+
+Pour explorer les catalogues (carte, coupes, 3D, mêmes séismes d'un run à
+l'autre, clusters, valeur b…), on utilise l'outil d'analyse de catalogues
+dans le navigateur, alimenté par `export_catalogues.py`. Les scripts de ce
+dépôt mesurent ce que cet outil ne voit pas : résidus, liens double
+différence, classes de qualité, écarts à la référence, quadrillage.
+`nll_sections.py` et `nll_coupe_interactive.py` sont gardés pour les
+figures des comptes rendus, sans nouvelles fonctions.
 
 ### `nll_quality.py` — classes de qualité NLL
 
@@ -55,6 +65,36 @@ est-nord, dont la médiane indique un biais systématique), `shift_vs_unc.png`
 > La référence n'est pas la vérité : LOCSAT utilise un modèle 1D. Un
 > faible écart à la référence veut dire « proche de LOCSAT », pas
 > « mieux localisé ».
+
+### `nll_local_vs_seiscomp.py` — run local contre SeisComP
+
+Vérifie qu'un run local (`nll_run.py`) reproduit SeisComP. On relocalise
+dans SeisComP, avec screloc, les mêmes origines et les mêmes pointés, avec
+le même profil et les mêmes grilles : étape 6 de l'`INSTALLER.txt` écrit
+par `profil_vers_seiscomp.py` (Loc_ToolBox). Les XML de screloc sont
+lus par `read_scml_origins()`, qui ignore les messages de NLLoc mêlés au
+XML et retrouve l'événement de chaque origine relocalisée par son
+identifiant (`--origin-id-suffix`).
+
+Pour chaque événement : écarts horizontal, vertical et 3D (m), en temps
+origine, de RMS, d'incertitudes et de nombre de phases. Les phases envoyées
+à NLL sont comparées des deux côtés : une phase utilisée d'un seul côté
+explique le plus souvent un écart. Par station : résidus moyens sur les
+phases communes, et phases de poids nul (écartées par NLL comme aberrantes).
+
+Sorties : `pairs.csv`, `resume.csv` (part des positions identiques à 1 m,
+10 m, 100 m et 1 km près, en tout et parmi les événements aux mêmes
+phases), `stations.csv`, `ecarts.png`, `map_ecarts.png`, `stations.png`.
+
+Configuration : section `local_vs_seiscomp` (`run`, `screloc`, `id_suffix`,
+`tolerance_m`).
+
+> screloc `--ep` utilise aussi les arrivées désactivées par l'analyste
+> (`timeUsed = false`), que `nll_run.py` écarte. Sur novembre 2024
+> (`05_ubaye_1D_topo_v2`, 2 956 événements), 143 événements en ont, et 85 %
+> d'entre eux changent de position (médiane 170 m, jusqu'à 8,7 km). Sur les
+> 2 813 événements aux mêmes phases, 98,2 % sont identiques à 10 m près et
+> 99,9 % à 100 m près.
 
 ### `nll_compare_runs.py` — comparaison de runs NLL
 
@@ -207,6 +247,30 @@ Le lien bulletin ↔ scrtdd se fait par l'Event ID SeisComP. L'`id` d'un
 Sorties : `summary.csv`, `stats.csv` (taux de relocalisation et déplacements
 par classe NLL).
 
+### `export_catalogues.py` — catalogues pour l'outil dans le navigateur
+
+Écrit un CSV par catalogue, à glisser dans la page de l'outil d'analyse de
+catalogues : un par run NLL (`export.nll_authors`, sinon
+`compare.nll_authors`), un par run scrtdd (`export.scrtdd_runs`, sinon
+`compare.scrtdd_runs`, événements relocalisés seulement) et
+`reference.csv` (origines LOCSAT, `export.reference`).
+
+Colonnes : `evid` (Event ID SeisComP, pour que l'outil apparie les mêmes
+séismes d'un fichier à l'autre), `time`, `latitude`, `longitude`,
+`depth_km`, `erh_km`, `erz_km`, `rms_s`, puis :
+- runs NLL : `classe` (A/B/C ; la dernière classe de `nll.quality_classes`
+  est laissée vide, l'outil ne connaissant que A, B, C et X),
+  `classe_nll` (classe complète), `nphs`, `gap`, `dmin_km` ;
+- runs scrtdd : `mag`, `cluster`, `rms_dd_debut_s` / `rms_dd_fin_s` (RMS de
+  résidus double différence), `dh_km` / `dz_km` (déplacement depuis la
+  position de départ).
+
+Sans eventlist, l'Event ID d'un run scrtdd vient du temps origine de la
+référence (`summary.time_tolerance_s`) ; les événements non retrouvés
+gardent leur `id` scrtdd (`scrtdd_<id>`), signalés dans le journal.
+
+Sorties : `<run NLL>.csv`, `scrtdd_<étiquette>.csv`, `reference.csv`.
+
 ## Données d'entrée
 
 ### Bulletin SeisComP (NLL)
@@ -226,7 +290,7 @@ Colonnes utilisées : `Event ID`, `Origin ID`, `Origin Time`, `Latitude`,
 
 ### Run NLL en ligne de commande (local)
 
-Le dossier d'un run lancé par `nll_run.py` (dépôt `NonLinLoc_ToolBox`) :
+Le dossier d'un run lancé par `nll_run.py` (dépôt `Loc_ToolBox`) :
 `<nom>.hyp` (toutes les localisations, `PUBLIC_ID` = Event ID SeisComP),
 `evenements.csv` (origine de référence de chaque événement, celle dont
 viennent les pointés) et `run.yaml` (profil, période, `LOCGRID`,
@@ -247,7 +311,7 @@ Le dossier qui contient `reloc-event.csv`. Les fichiers d'entrée et par
 cluster (`input-*.csv`, `cluster-N-*.csv`, `xcorr.csv`) peuvent être dans ce
 dossier ou dans un sous-dossier `multievent_<date>_<pid>/` : ils sont
 trouvés automatiquement. Lancé avec `--reloc-catalog` (fichiers de
-`scrtdd_inputs.py` de NonLinLoc_ToolBox), scrtdd n'écrit pas d'`input-*.csv` :
+`scrtdd_inputs.py` de Loc_ToolBox), scrtdd n'écrit pas d'`input-*.csv` :
 les positions de départ et les stations sont alors lues dans `event.csv` et
 `station.csv`. L'eventlist (`eventlist*.csv`) est cherchée dans le
 même dossier, sauf si `paths.scrtdd_eventlist` est renseigné.
@@ -273,7 +337,7 @@ cp config.example.yaml config.yaml
 ```
 
 Puis éditer `config.yaml` :
-- `racine` : le dossier de travail. C'est le même que celui de NonLinLoc_ToolBox
+- `racine` : le dossier de travail. C'est le même que celui de Loc_ToolBox
   (défaut : `NonLinLoc_travail/` à côté des dépôts). Les chemins des
   données qui suivent en partent, sauf s'ils sont absolus (`/…` ou `~/…`) :
   `nll_runs: [runs/exemple_jura_1D_20240301_20240331]` suffit, par exemple.
@@ -331,16 +395,18 @@ LocQuality_ToolBox/
 ├── loc_common.py           ← code partagé (lecture, géographie, figures)
 ├── nll_quality.py          ← classes de qualité NLL
 ├── nll_vs_reference.py     ← NLL vs référence LOCSAT
+├── nll_local_vs_seiscomp.py ← run local vs SeisComP (screloc), mêmes pointés
 ├── nll_compare_runs.py     ← comparaison de runs NLL
 ├── nll_gridding.py         ← quadrillage (octree) et paliers de profondeur
 ├── nll_station_residuals.py ← résidus par station
-├── nll_sections.py         ← netteté des structures (cartes et coupes)
-├── nll_coupe_interactive.py ← carte et coupe interactives
+├── nll_sections.py         ← netteté des structures (cartes et coupes, gelé)
+├── nll_coupe_interactive.py ← carte et coupe interactives (gelé)
 ├── dd_shifts.py            ← déplacements scrtdd
 ├── dd_residuals.py         ← résidus scrtdd
 ├── dd_links.py             ← liens DD et corrélation croisée
 ├── dd_compare_runs.py      ← comparaison de runs scrtdd
 ├── summary_table.py        ← tableau récapitulatif par événement
+├── export_catalogues.py    ← CSV par run pour l'outil dans le navigateur
 ├── tests/                  ← tests unitaires (pytest)
 └── outputs/                ← résultats (non versionné)
 ```
