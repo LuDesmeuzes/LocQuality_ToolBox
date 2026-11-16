@@ -34,9 +34,9 @@ NLL_METHOD = "NonLinLoc"
 # CONFIGURATION / CLI / LOG
 # ─────────────────────────────────────────────────────────────────────────────
 
-# Dossier de travail par défaut : celui de Loc_ToolBox (NonLinLoc_travail/
+# Dossier de travail par défaut : celui de Loc_ToolBox (Loc_ToolBox_travail/
 # à côté des dépôts), où sont ses runs et ses profils.
-DEFAULT_ROOT = Path(__file__).resolve().parent.parent / "NonLinLoc_travail"
+DEFAULT_ROOT = Path(__file__).resolve().parent.parent / "Loc_ToolBox_travail"
 
 
 def resolve_path(value, root):
@@ -53,7 +53,7 @@ def load_config(config_path):
     paths.scrtdd_run_dir, paths.scrtdd_eventlist, compare.scrtdd_runs,
     export.scrtdd_runs,
     gridding.topo, local_vs_seiscomp.run et .screloc) sont relatifs au dossier `racine` (défaut : celui de
-    Loc_ToolBox, NonLinLoc_travail/ à côté des dépôts) quand ils ne
+    Loc_ToolBox, Loc_ToolBox_travail/ à côté des dépôts) quand ils ne
     sont pas absolus. paths.output_dir reste relatif au dépôt.
 
     Si le fichier n'existe pas, lève une erreur explicite invitant

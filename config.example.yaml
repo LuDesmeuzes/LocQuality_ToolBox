@@ -14,7 +14,7 @@
 # ═══════════════════════════════════════════════════════════════════════════
 
 # Dossier de travail, le même que celui de Loc_ToolBox (runs/,
-# profils/…). Absent → NonLinLoc_travail/ à côté des dépôts. Exemple :
+# profils/…). Absent → Loc_ToolBox_travail/ à côté des dépôts. Exemple :
 # racine: ~/Documents/Boulot/Localisation
 
 paths:

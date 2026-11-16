@@ -338,7 +338,7 @@ cp config.example.yaml config.yaml
 
 Puis éditer `config.yaml` :
 - `racine` : le dossier de travail. C'est le même que celui de Loc_ToolBox
-  (défaut : `NonLinLoc_travail/` à côté des dépôts). Les chemins des
+  (défaut : `Loc_ToolBox_travail/` à côté des dépôts). Les chemins des
   données qui suivent en partent, sauf s'ils sont absolus (`/…` ou `~/…`) :
   `nll_runs: [runs/exemple_jura_1D_20240301_20240331]` suffit, par exemple.
 - `paths.bulletin` : le bulletin purifié (ou une liste de bulletins)
